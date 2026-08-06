@@ -136,14 +136,24 @@ class LLMService:
         """Yield chunks of the assistant's reply as they are generated (R8).
 
         Note: usage is not always available on streamed responses, so token
-        tracking may be approximate here — check your SDK/model version."""
+        tracking may be approximate here — check your SDK/model version.
+
+        If the connection drops mid-stream (e.g. a 503 "request queue is
+        full"), the raw SDK error is classified and re-raised as a friendly
+        LLMError instead of crashing with a traceback (R6)."""
         stream = self._call_with_retries(
             messages,
             temperature=self._pick(temperature, self.temperature),
             max_tokens=self._pick(max_tokens, self.max_tokens),
             stream=True,
         )
-        for chunk in stream:
+        while True:
+            try:
+                chunk = next(stream)
+            except StopIteration:
+                break
+            except Exception as raw:  # noqa: BLE001 — mid-stream failures
+                raise self._classify_error(raw) from raw
             try:
                 delta = chunk.choices[0].delta
                 piece = getattr(delta, "content", None)
@@ -203,6 +213,8 @@ class LLMService:
         if "badrequest" in name or "invalidrequest" in name or "context length" in text:
             return InvalidRequestError()
         if any(k in name for k in ("timeout", "connection", "apierror", "internalserver")):
+            return ServiceUnavailableError()
+        if "503" in text or "queue is full" in text:
             return ServiceUnavailableError()
         return ServiceUnavailableError()
 
