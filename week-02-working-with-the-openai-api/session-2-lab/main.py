@@ -19,6 +19,7 @@ import sys
 
 import config
 from llm import LLMService, LLMError, ConfigurationError
+from store import ConversationStore, ConversationNotFoundError, StoreError
 
 # Load variables from a local .env file if python-dotenv is available (R9).
 try:
@@ -64,6 +65,8 @@ Commands:
   /temperature <value>  change temperature (0.0 - 2.0)
   /tokens <n>           change the maximum output tokens
   /usage                show total tokens used this session
+  /save <name>          save this conversation to the chat database
+  /load <name>          load a saved conversation (replaces history)
   /clear                clear the conversation history
   /quit                 exit
 """
@@ -80,6 +83,7 @@ class Session:
             temperature=args.temperature,
             max_tokens=args.max_tokens,
         )
+        self.store = ConversationStore()
         self.persona_name = args.persona
         self.system_file = args.system
         self.reset_conversation()
@@ -141,6 +145,16 @@ class Session:
             self._set_int("max_tokens", arg)
         elif cmd == "/usage":
             print(self.service.total_usage.format())
+        elif cmd == "/save":
+            if arg:
+                self._save_conversation(arg)
+            else:
+                print("Usage: /save <name>")
+        elif cmd == "/load":
+            if arg:
+                self._load_conversation(arg)
+            else:
+                print("Usage: /load <name>")
         elif cmd == "/clear":
             self.reset_conversation()
             print("Conversation cleared.")
@@ -170,6 +184,39 @@ class Session:
         old = getattr(self.service, attr)
         setattr(self.service, attr, value)
         print(f"{attr} changed from {old} -> {value}")
+
+    # ---- saved conversations (Stretch Goal S2) ---------------------------
+    def resume_latest(self) -> str | None:
+        """Auto-load the most recent saved conversation (S2 extension).
+
+        Returns the conversation name if one was resumed, else None."""
+        try:
+            name, messages = self.store.load_latest()
+        except (ConversationNotFoundError, StoreError):
+            return None
+        self.messages = messages
+        return name
+
+    def _save_conversation(self, name: str) -> None:
+        try:
+            self.store.save(name, self.messages)
+        except StoreError as err:
+            print(f"Could not save: {err}")
+            return
+        print(f"Conversation saved as '{name}'.")
+
+    def _load_conversation(self, name: str) -> None:
+        try:
+            messages = self.store.load(name)
+        except ConversationNotFoundError:
+            print(f"No saved conversation named '{name}'.")
+            return
+        except StoreError as err:
+            # Keep the current conversation on any bad load (S2 step 4).
+            print(f"Could not load: {err}")
+            return
+        self.messages = messages
+        print(f"Conversation '{name}' loaded.")
 
     # ---- one turn --------------------------------------------------------
     def ask_turn(self, user_input: str) -> None:
@@ -207,6 +254,9 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     session = Session(args)
     print_banner(args)
+    resumed = session.resume_latest()
+    if resumed:
+        print(f"Resumed previous conversation '{resumed}'.\n")
 
     while True:
         try:

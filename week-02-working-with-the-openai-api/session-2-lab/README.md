@@ -17,9 +17,10 @@ askbot/
 ├── main.py            # CLI, input/output loop, interactive commands
 ├── llm.py             # LLM service wrapper (errors, retries, usage)
 ├── config.py          # defaults + personas
+├── store.py           # SQLite persistence for /save and /load (S2)
 ├── requirements.txt   # dependencies
 ├── .env.example       # template for your key (copy to .env)
-├── .gitignore         # ignores .env, .venv, __pycache__
+├── .gitignore         # ignores .env, .venv, __pycache__, *.db
 └── README.md          # this file
 ```
 
@@ -65,6 +66,7 @@ python main.py --persona tutor --temperature 0.4 --max-tokens 500 --stream
 ```
 /help        /persona <name>     /temperature <value>
 /tokens <n>  /usage              /clear            /quit
+/save <name> /load <name>        (S2: save and resume chats)
 ```
 
 ## How the requirements map to the code
@@ -107,25 +109,38 @@ user needs a different message from "the service is busy".
 tiny model context) prints your friendly message once, with no retries, and the
 conversation history stays clean.
 
-### S2 — Save and restore a conversation
+### S2 — Save and resume a conversation
 
-**Goal:** add `/save <file>` and `/load <file>` commands so a chat can be kept
+**Goal:** add `/save <name>` and `/load <name>` commands so a chat can be kept
 between runs.
 
 **Why it matters:** the conversation is just data, a list of role and content
 messages. Once you see that, persisting it is a small step, and it makes the
 memory idea from R5 concrete.
 
+The reference implementation stores conversations in a local SQLite database
+(`conversations.db`) instead of JSON files, using the standard library
+`sqlite3` module in `store.py`. It also resumes automatically: on startup, if
+anything was ever saved, the most recently saved conversation is loaded back
+into the session, so you can pick up where you left off without a command.
+`/load` still lets you choose a specific saved conversation by name.
+
+That keeps persistence behind one small
+module with no new dependency, and `main.py` stays concerned only with user
+interaction.
+
 **What to build:**
 
-1. In `main.py`, add `/save <file>` that writes `self.messages` to a JSON file.
-2. Add `/load <file>` that reads the JSON back into `self.messages`, replacing the current history.
-3. Validate the loaded file: it should be a list of dicts that each have a `role` and `content`. On a bad file, print a friendly message and keep the current conversation.
-4. Update `/help` and the README command list to include the two new commands.
+1. In `store.py`, wrap a `sqlite3` database that keeps conversations by name.
+2. In `main.py`, add `/save <name>` that writes `self.messages` under that name.
+3. Add `/load <name>` that reads the conversation back into `self.messages`, replacing the current history.
+4. Validate what is loaded: it should be a list of dicts that each have a `role` and `content`. On a bad entry, print a friendly message and keep the current conversation.
+5. Update `/help` and the README command list to include the two new commands.
 
-**Done when:** you can hold a short chat, run `/save chat.json`, quit, start a
-fresh session, run `/load chat.json`, and the assistant answers the next
-question with the earlier context in mind.
+**Done when:** you can hold a short chat, run `/save mychat`, quit, start a
+fresh session, run `/load mychat`, and the assistant answers the next
+question with the earlier context in mind. The conversation survives the
+restart and lives in `conversations.db`.
 
 Add a short note in `NOTES.md` about which stretch goal you did and what you
 learned from it.

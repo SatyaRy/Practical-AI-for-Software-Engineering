@@ -19,6 +19,9 @@ MAX_RETRIES = 3          # Step 8: never retry more than this many times
 BACKOFF_BASE = 1.0       # seconds; delay = BACKOFF_BASE * 2 ** attempt
 BACKOFF_MAX = 30.0       # cap the wait so we never sleep absurdly long
 
+# ---- persistence (Stretch Goal S2) ---------------------------------------
+CONVERSATION_DB = "conversations.db"   # SQLite file for /save and /load
+
 # ---- personas (system prompts) ------------------------------------------
 DEFAULT_PERSONA = """\
 You are a helpful programming assistant.
