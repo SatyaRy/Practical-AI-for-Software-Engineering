@@ -39,7 +39,7 @@ cp .env.example .env               # then edit .env and add your real key
 ```
 
 Set the model name in `config.py` (`DEFAULT_MODEL`) to whatever your course
-environment provides, or export `OPENAI_MODEL`.
+environment provides, or export `API_MODEL`.
 
 ## Running
 

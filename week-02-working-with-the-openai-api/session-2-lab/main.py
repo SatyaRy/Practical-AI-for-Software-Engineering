@@ -14,6 +14,7 @@ Type /help inside the session for interactive commands.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 import config
@@ -35,10 +36,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--temperature", type=float, default=config.DEFAULT_TEMPERATURE)
     p.add_argument("--max-tokens", type=int, default=config.DEFAULT_MAX_TOKENS,
                    dest="max_tokens")
-    p.add_argument("--model", default=config.DEFAULT_MODEL,
-                   help="override the model name")
+    p.add_argument("--model", default=os.environ.get("API_MODEL") or config.DEFAULT_MODEL,
+                   help="override the model name (defaults to API_MODEL or config)")
     p.add_argument("--stream", action="store_true",
                    help="stream the response progressively")
+    p.add_argument("--system", default=None,
+                   help="path to a file with a custom system prompt")
     return p.parse_args(argv)
 
 
@@ -57,6 +60,7 @@ HELP_TEXT = """\
 Commands:
   /help                 show this help
   /persona <name>       switch persona (resets the conversation)
+  /system <file>        load a custom system prompt from a file
   /temperature <value>  change temperature (0.0 - 2.0)
   /tokens <n>           change the maximum output tokens
   /usage                show total tokens used this session
@@ -77,13 +81,26 @@ class Session:
             max_tokens=args.max_tokens,
         )
         self.persona_name = args.persona
+        self.system_file = args.system
         self.reset_conversation()
 
     # ---- conversation state ---------------------------------------------
     def reset_conversation(self) -> None:
-        system_prompt = config.get_persona(self.persona_name)
+        system_prompt = self._load_system_prompt()
         # The conversation is just data — a list of role/content messages.
         self.messages = [{"role": "system", "content": system_prompt}]
+
+    def _load_system_prompt(self) -> str:
+        """Load the system prompt from a file if one was set, else use the
+        named persona from config."""
+        if self.system_file:
+            try:
+                with open(self.system_file, encoding="utf-8") as f:
+                    return f.read().strip()
+            except OSError as err:
+                print(f"Could not read {self.system_file}: {err}")
+                self.system_file = None
+        return config.get_persona(self.persona_name)
 
     # ---- command handling -----------------------------------------------
     def handle_command(self, line: str) -> bool:
@@ -100,10 +117,24 @@ class Session:
         elif cmd == "/persona":
             if arg:
                 self.persona_name = arg
+                self.system_file = None  # a persona replaces any custom file
                 self.reset_conversation()
                 print(f"Persona changed to '{arg}' (conversation reset).")
             else:
                 print("Usage: /persona <tutor|reviewer|interviewer|default>")
+        elif cmd == "/system":
+            if arg:
+                try:
+                    with open(arg, encoding="utf-8") as f:
+                        f.read()
+                except OSError as err:
+                    print(f"Could not read {arg}: {err}")
+                else:
+                    self.system_file = arg
+                    self.reset_conversation()
+                    print(f"System prompt loaded from '{arg}' (conversation reset).")
+            else:
+                print("Usage: /system <path/to/prompt.txt>")
         elif cmd == "/temperature":
             self._set_float("temperature", arg, 0.0, 2.0)
         elif cmd == "/tokens":

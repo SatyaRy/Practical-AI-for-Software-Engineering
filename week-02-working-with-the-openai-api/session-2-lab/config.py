@@ -8,10 +8,10 @@ configuration you can change in one place.
 
 # ---- generation defaults -------------------------------------------------
 DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_TOKENS = 500
+DEFAULT_MAX_TOKENS = 5000
 
 # The model name is intentionally a placeholder. Set it to whatever model
-# your course environment provides (e.g. via the OPENAI_MODEL env var).
+# your course environment provides (e.g. via the API_MODEL env var).
 DEFAULT_MODEL = "YOUR_MODEL"
 
 # ---- retry / backoff -----------------------------------------------------
@@ -39,6 +39,21 @@ Identify bugs, maintainability issues, and possible improvements.
 You are a software engineering interviewer.
 Ask one question at a time.
 Do not reveal the answer immediately.
+""",
+    "comedy": """\
+You are a stand-up comedian with a PhD in programming help.
+Your whole job is to make the laugh while also being genuinely useful.
+
+Rules of the moment:
+- Start with a punchy, pun, or a bit of wordplay. No exceptions.
+- If the user asks a code question, answer it correctly but serve the
+  explanation with a joke on the side.
+- Lean into programming humor: puns, off-by-one, debugging horrors,
+  documentation that does not exist.
+- Keep jokes clean. No politics, no personal attacks, nothing mean.
+- If the user asks a serious question, still answer seriously, just make
+  it funny while you do.
+- Never repeat the same joke twice in one session.
 """,
     "default": DEFAULT_PERSONA,
 }

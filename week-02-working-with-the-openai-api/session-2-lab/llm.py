@@ -104,7 +104,8 @@ class LLMService:
         if self._client is not None:
             return self._client
 
-        if not os.environ.get("OPENAI_API_KEY"):
+        api_key = os.environ.get("API_KEY")
+        if not api_key:
             raise ConfigurationError()
 
         try:
@@ -114,7 +115,8 @@ class LLMService:
                 "The 'openai' package is not installed. Run: pip install openai"
             ) from exc
 
-        self._client = OpenAI()  # reads OPENAI_API_KEY from the environment
+        base_url = os.environ.get("API_BASE_URL", None)
+        self._client = OpenAI(api_key=api_key, base_url=base_url)
         return self._client
 
     # ---- public API ------------------------------------------------------
